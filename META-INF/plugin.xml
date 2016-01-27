@@ -38,7 +38,7 @@
 
   <actions>
     <!-- Add your actions here -->
-    <action id="ParcelableGenerator" class="ParcelableGenerator" text="Generate Parcelable"
+    <action id="com.wangjie.androidparcelableplugin.ParcelableGenerator" class="com.wangjie.androidparcelableplugin.ParcelableGenerator" text="Generate Parcelable"
             description="Generate Parcelable">
       <add-to-group group-id="CodeMenu" anchor="last"/>
     </action>
