@@ -25,8 +25,7 @@ import com.wangjie.androidparcelableplugin.util.ParcelUtil;
 import java.util.HashMap;
 import java.util.List;
 
-import static com.wangjie.androidparcelableplugin.util.XProjectUtil.getTypeByClass;
-import static com.wangjie.androidparcelableplugin.util.XProjectUtil.getTypeByName;
+import static com.wangjie.androidparcelableplugin.util.XProjectUtil.*;
 
 /**
  * Author: wangjie
@@ -101,7 +100,7 @@ public class ParcelableGenerator extends AnAction {
     public static final String SERIALIZABLE_CLASS_FULL_NAME = "java.io.Serializable";
 
     public static final String PARCEL_CLASS_NAME = "Parcel";
-    //    public static final String PARCEL_CLASS_FULL_NAME = "android.os." + PARCEL_CLASS_NAME;
+    public static final String PARCEL_CLASS_FULL_NAME = PARCELABLE_PACKAGE + "." + PARCEL_CLASS_NAME;
     public static final String METHOD_DESCRIBE_CONTENT = "@Override\n" +
             "    public int describeContents(){\n" +
             "        return 0;\n" +
@@ -154,59 +153,90 @@ public class ParcelableGenerator extends AnAction {
 
             @Override
             protected void run() throws Throwable {
-                generateImplementsParcelableInterface(targetPsiClass);
+                startGenerate(targetPsiClass);
             }
         }.execute();
 
 
     }
 
+    /**
+     * Start to generate Parcelable template code.
+     *
+     * @param targetPsiClass
+     */
+    private void startGenerate(PsiClass targetPsiClass) {
+        // Delete if already implementing android.os.Parcelable
+        PsiReferenceList implementsListTypes = targetPsiClass.getImplementsList();
+        for (PsiJavaCodeReferenceElement psi : implementsListTypes.getReferenceElements()) {
+            if ((PARCELABLE_CLASS_FULL_NAME).equals(psi.getQualifiedName())) {
+                psi.delete();
+            }
+        }
+
+        // Delete if `CREATOR` field exist.
+        PsiField[] fields = targetPsiClass.getFields();
+        for (PsiField field : fields) {
+            PsiModifierList psiModifierList = field.getModifierList();
+            if (null != psiModifierList && psiModifierList.hasModifierProperty("static")
+                    && field.getName().equals("CREATOR")
+                    && field.getType().getCanonicalText().equals(PARCELABLE_CLASS_FULL_NAME + ".Creator<" + targetPsiClass.getQualifiedName() + ">")) {
+                field.delete();
+            }
+        }
+
+        // Delete if `describeContents` or `writeToParcel` or constructor method with single android.os.Parcel parameter exist.
+        PsiMethod[] psiMethods = targetPsiClass.getMethods();
+        for (PsiMethod method : psiMethods) {
+            if (isSameMethod(method, "describeContents")
+                    ||
+                    isSameMethod(method, "writeToParcel", PARCEL_CLASS_FULL_NAME, "int")
+                    ||
+                    isSameMethod(method, targetPsiClass.getName(), PARCEL_CLASS_FULL_NAME)
+                    ) {
+                method.delete();
+            }
+        }
+
+        generateImplementsParcelableInterface(targetPsiClass);
+    }
+
 
     /**
-     * 生成import
+     * Generate import statement.
      */
-    private void generateImports() {
+    private void generateImportStatement(String importPackage) {
         PsiImportList psiImportList = psiFile.getImportList();
-        if (null == psiImportList.findOnDemandImportStatement(PARCELABLE_PACKAGE)) {
-            psiImportList.add(factory.createImportStatementOnDemand(PARCELABLE_PACKAGE));
+        if (null == psiImportList.findOnDemandImportStatement(importPackage)) {
+            psiImportList.add(factory.createImportStatementOnDemand(importPackage));
         }
     }
 
     /**
-     * 实现某个接口
+     * Implement android.os.Parcelable interface
      */
     private void generateImplementsParcelableInterface(PsiClass targetPsiClass) {
-        PsiClassType[] implementsListTypes = targetPsiClass.getImplementsListTypes();
-        for (PsiClassType psi : implementsListTypes) {
-            PsiClass resolved = psi.resolve();
-            // 如果该接口已经被实现了，则不再重新实现
-            if (null != resolved && (PARCELABLE_PACKAGE + PARCELABLE_CLASS_SIMPLE_NAME).equals(resolved.getQualifiedName())) {
-                return;
-            }
-        }
-
-        // 实现接口
         PsiJavaCodeReferenceElement referenceElement = factory.createReferenceFromText(PARCELABLE_CLASS_SIMPLE_NAME, null);
         PsiReferenceList implementsList = targetPsiClass.getImplementsList();
         if (null != implementsList) {
             implementsList.add(referenceElement);
         }
 
-        generateImports();
+        generateImportStatement(PARCELABLE_PACKAGE);
 
         generateExtraMethods(targetPsiClass);
     }
 
     /**
-     * 生成其它方法
+     * Generate other methods.
      */
     private void generateExtraMethods(PsiClass psiClass) {
         String psiClassName = psiClass.getName();
 
-        // 生成writeToParcel方法
+        // Generate`writeToParcel` method.
         PsiMethod writeMethod = factory.createMethodFromText(METHOD_WRITE_TO_PARCEL, null);
 
-        // 创建含有Parcel的构造方法
+        // Generate constructor method with single android.os.Parcel parameter
         PsiMethod parcelConstructor = factory.createMethodFromText(METHOD_CONSTRUCTOR_FROM_PARCEL.replace("${PsiClassName}", psiClassName), null);
 
         PsiField[] fields = psiClass.getAllFields();
@@ -219,7 +249,7 @@ public class ParcelableGenerator extends AnAction {
             }
             PsiType fieldType = field.getType();
 
-            // 取指定的generator
+            // Pick default generator
             SupportTypeGenerator supportTypeGenerator = generatorMapper.get(fieldType.getPresentableText());
 
             if (null == supportTypeGenerator) {
@@ -240,12 +270,11 @@ public class ParcelableGenerator extends AnAction {
                 }
             }
 
-            // 尝试使用默认的generator
             if (null == supportTypeGenerator && ParcelUtil.isParcelable(fieldType, project)) {
                 supportTypeGenerator = generatorMapper.get("common");
             }
 
-            if(null == supportTypeGenerator){
+            if (null == supportTypeGenerator) {
                 if (getTypeByName(SERIALIZABLE_CLASS_FULL_NAME, project).isAssignableFrom(fieldType)) { // 是Serializable类型
                     supportTypeGenerator = generatorMapper.get("Serializable");
                 }
@@ -265,35 +294,35 @@ public class ParcelableGenerator extends AnAction {
         psiClass.add(writeMethod);
         psiClass.add(parcelConstructor);
 
-        // 生成describeContents方法
+        // Generate describeContents method
         psiClass.add(factory.createMethodFromText(METHOD_DESCRIBE_CONTENT, null));
 
-        // 生成CREATOR
+        // Generate CREATOR field
         psiClass.add(factory.createFieldFromText(FIELD_CREATOR.replace("${PsiClassName}", psiClassName), null));
 
     }
 
 
     /**
-     * 获取当前光标位置的parent
+     * Get parent which the cursor locate.
      *
      * @return
      */
     private PsiClass getPsiClassFromContext() {
-        // 获取当前文件中的所有类
+        // Get all classes in current file.
         PsiClass[] classes = ((PsiJavaFileImpl) psiFile).getClasses();
         int len = classes.length;
-        // 如果当前文件中没有类,则返回null
+        //  Return null if there is no class in this file
         if (len <= 0) {
             return null;
         }
-        // 如果当前文件中只有一个类,则直接返回该类
+        // If there is only one class in this file, return it directly.
         if (1 == len) {
             return classes[0];
         }
 
-        // 如果当前文件中有多个类,则由光标决定作用在哪个类上面
-        int offset = editor.getCaretModel().getOffset(); // 当前光标位置
+        // If there is more than one classes, return the class which cursor located.
+        int offset = editor.getCaretModel().getOffset(); // the location of cursor.
         PsiElement elementAt = psiFile.findElementAt(offset);
         return PsiTreeUtil.getParentOfType(elementAt, PsiClass.class);
     }
