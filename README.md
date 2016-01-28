@@ -39,6 +39,7 @@ public class Person {
     private SparseArray sparseArray;
     private PersistableBundle persistableBundle;
     private Phone[] phoneArray;
+    private HashMap<String, Pet> petMapper;
 }
 
 class Phone {
@@ -89,19 +90,20 @@ public class Person implements Parcelable {
         name = in.readString();
         address = in.readString();
         deleted = 1 == in.readByte();
-        weight = (Float) in.readValue(Float.class.getClassLoader());
-        height = (Double) in.readValue(Double.class.getClassLoader());
-        gender = (Byte) in.readValue(Byte.class.getClassLoader());
+        weight = (Float) in.readValue(getClass().getClassLoader());
+        height = (Double) in.readValue(getClass().getClassLoader());
+        gender = (Byte) in.readValue(getClass().getClassLoader());
         nickNames = in.createStringArray();
         bundle = in.readParcelable(Bundle.class.getClassLoader());
         pet = (Pet) in.readSerializable();
         date = (Date) in.readSerializable();
         phones = in.createTypedArrayList(Phone.CREATOR);
-        otherPets = (List<Pet>) in.readValue(Pet.class.getClassLoader());
-        iBinder = (IBinder) in.readValue(IBinder.class.getClassLoader());
-        sparseArray = (SparseArray) in.readValue(SparseArray.class.getClassLoader());
+        otherPets = (List<Pet>) in.readValue(getClass().getClassLoader());
+        iBinder = (IBinder) in.readValue(getClass().getClassLoader());
+        sparseArray = (SparseArray<String>) in.readValue(getClass().getClassLoader());
         persistableBundle = in.readParcelable(PersistableBundle.class.getClassLoader());
         phoneArray = in.createTypedArray(Phone.CREATOR);
+        petMapper = (HashMap<String, Pet>) in.readValue(getClass().getClassLoader());
     }
 
     @Override
@@ -123,6 +125,7 @@ public class Person implements Parcelable {
         out.writeValue(sparseArray);
         out.writeParcelable(persistableBundle, 0);
         out.writeTypedArray(phoneArray, 0);
+        out.writeValue(petMapper);
     }
 
     @Override

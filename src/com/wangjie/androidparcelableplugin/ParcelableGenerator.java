@@ -237,14 +237,18 @@ public class ParcelableGenerator extends AnAction {
                             }
                         }
                     }
-                } else if (getTypeByName(SERIALIZABLE_CLASS_FULL_NAME, project).isAssignableFrom(fieldType)) { // 是Serializable类型
-                    supportTypeGenerator = generatorMapper.get("Serializable");
                 }
             }
 
             // 尝试使用默认的generator
             if (null == supportTypeGenerator && ParcelUtil.isParcelable(fieldType, project)) {
                 supportTypeGenerator = generatorMapper.get("common");
+            }
+
+            if(null == supportTypeGenerator){
+                if (getTypeByName(SERIALIZABLE_CLASS_FULL_NAME, project).isAssignableFrom(fieldType)) { // 是Serializable类型
+                    supportTypeGenerator = generatorMapper.get("Serializable");
+                }
             }
 
             if (null == supportTypeGenerator) {
