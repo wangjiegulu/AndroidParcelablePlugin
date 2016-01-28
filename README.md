@@ -1,7 +1,9 @@
 # AndroidParcelablePlugin
+
 Intellij IDEA(Android Studio) Plugin for Android Parcelable.
 
 ## Supported types
+
 - Types implementing `Parcelable`
 - Types implementing `Serializable`
 - `Parcelable` list / array
@@ -17,6 +19,7 @@ Intellij IDEA(Android Studio) Plugin for Android Parcelable.
 - `CharSequence`
 
 ##Implement Parcelable interface:
+
 ```java
 public class Person {
     private int id;
@@ -47,7 +50,9 @@ class Pet implements Serializable {
     private String name;
 }
 ```
+
 == generate... ==>
+
 ```java
 public class Person implements Parcelable {
     public static final Parcelable.Creator<Person> CREATOR = new Parcelable.Creator<Person>() {
@@ -164,13 +169,21 @@ class Pet implements Serializable {
 ```
 
 ## How to use
+
 ### 1. Install the "Parcelable Generator For Android" plugin.
+
 Preferences --> Plugins --> Install Plugin from disk --> restart
+
 <img src='screenshot/01.png' height='500px'/>
+
 ###2. Open "Generate Parcelable"  item menu.
+
 - Right click -> `generate...` -> `Generate Parcelable`
+
 OR
+
 - `Control` + `Enter` -> `Generate Parcelable`
+
 <img src='screenshot/02.png' height='500px'/>
 
 License
