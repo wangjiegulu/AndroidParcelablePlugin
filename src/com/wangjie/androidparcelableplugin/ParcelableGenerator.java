@@ -8,9 +8,25 @@ import com.intellij.openapi.command.WriteCommandAction;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.project.Project;
 import com.intellij.psi.*;
+import com.intellij.psi.impl.source.PsiClassReferenceType;
 import com.intellij.psi.impl.source.PsiJavaFileImpl;
-import com.intellij.psi.search.GlobalSearchScope;
 import com.intellij.psi.util.PsiTreeUtil;
+import com.wangjie.androidparcelableplugin.types.SupportTypeGenerator;
+import com.wangjie.androidparcelableplugin.types.common.CommonTypeGenerator;
+import com.wangjie.androidparcelableplugin.types.parcelable.ParcelableArrayGenerator;
+import com.wangjie.androidparcelableplugin.types.parcelable.ParcelableListGenerator;
+import com.wangjie.androidparcelableplugin.types.parcelable.ParcelableTypeGenerator;
+import com.wangjie.androidparcelableplugin.types.primitive.PrimitiveArrayGenerator;
+import com.wangjie.androidparcelableplugin.types.primitive.PrimitiveBooleanGenerator;
+import com.wangjie.androidparcelableplugin.types.primitive.PrimitiveTypeGenerator;
+import com.wangjie.androidparcelableplugin.types.serializable.SerializableTypeGenerator;
+import com.wangjie.androidparcelableplugin.util.ParcelUtil;
+
+import java.util.HashMap;
+import java.util.List;
+
+import static com.wangjie.androidparcelableplugin.util.XProjectUtil.getTypeByClass;
+import static com.wangjie.androidparcelableplugin.util.XProjectUtil.getTypeByName;
 
 /**
  * Author: wangjie
@@ -18,6 +34,60 @@ import com.intellij.psi.util.PsiTreeUtil;
  * Date: 10/9/15.
  */
 public class ParcelableGenerator extends AnAction {
+    private HashMap<String, SupportTypeGenerator> generatorMapper = new HashMap<>();
+
+    {
+
+        CommonTypeGenerator commonTypeGenerator = new CommonTypeGenerator();
+
+        // primitive type
+        PrimitiveTypeGenerator primitiveTypeGenerator = new PrimitiveTypeGenerator();
+        generatorMapper.put("boolean", new PrimitiveBooleanGenerator());
+        generatorMapper.put("int", primitiveTypeGenerator);
+        generatorMapper.put("float", primitiveTypeGenerator);
+        generatorMapper.put("long", primitiveTypeGenerator);
+        generatorMapper.put("double", primitiveTypeGenerator);
+        generatorMapper.put("byte", primitiveTypeGenerator);
+        generatorMapper.put("String", primitiveTypeGenerator);
+        generatorMapper.put("short", primitiveTypeGenerator);
+
+        // primitive type wrapper, common type instead!
+        generatorMapper.put("Boolean", commonTypeGenerator);
+        generatorMapper.put("Integer", commonTypeGenerator);
+        generatorMapper.put("Float", commonTypeGenerator);
+        generatorMapper.put("Long", commonTypeGenerator);
+        generatorMapper.put("Double", commonTypeGenerator);
+        generatorMapper.put("Byte", commonTypeGenerator);
+        generatorMapper.put("Short", commonTypeGenerator);
+
+        // primitive array
+        PrimitiveArrayGenerator primitiveArrayGenerator = new PrimitiveArrayGenerator();
+        generatorMapper.put("boolean[]", primitiveArrayGenerator);
+        generatorMapper.put("int[]", primitiveArrayGenerator);
+        generatorMapper.put("float[]", primitiveArrayGenerator);
+        generatorMapper.put("long[]", primitiveArrayGenerator);
+        generatorMapper.put("double[]", primitiveArrayGenerator);
+        generatorMapper.put("byte[]", primitiveArrayGenerator);
+        generatorMapper.put("String[]", primitiveArrayGenerator);
+        generatorMapper.put("short[]", primitiveArrayGenerator);
+
+        // type implementing Parcelable
+        generatorMapper.put("Parcelable", new ParcelableTypeGenerator());
+
+        // type implementing Parcelable
+        generatorMapper.put("Serializable", new SerializableTypeGenerator());
+
+        // list of type implementing Parcelable
+        generatorMapper.put("ParcelableList", new ParcelableListGenerator());
+
+        // Parcelable array
+        generatorMapper.put("ParcelableArray", new ParcelableArrayGenerator());
+
+        // common type
+        generatorMapper.put("common", commonTypeGenerator);
+
+    }
+
     private Project project;
     private PsiJavaFileImpl psiFile;
     private Editor editor;
@@ -26,7 +96,9 @@ public class ParcelableGenerator extends AnAction {
 
     public static final String PARCELABLE_PACKAGE = "android.os";
     public static final String PARCELABLE_CLASS_SIMPLE_NAME = "Parcelable";
-//    public static final String PARCELABLE_CLASS_FULL_NAME = PARCELABLE_PACKAGE + "." + PARCELABLE_CLASS_SIMPLE_NAME;
+    public static final String PARCELABLE_CLASS_FULL_NAME = PARCELABLE_PACKAGE + "." + PARCELABLE_CLASS_SIMPLE_NAME;
+
+    public static final String SERIALIZABLE_CLASS_FULL_NAME = "java.io.Serializable";
 
     public static final String PARCEL_CLASS_NAME = "Parcel";
     //    public static final String PARCEL_CLASS_FULL_NAME = "android.os." + PARCEL_CLASS_NAME;
@@ -91,16 +163,6 @@ public class ParcelableGenerator extends AnAction {
 
 
     /**
-     * Class -> PsiClass
-     *
-     * @param clazz
-     * @return
-     */
-    private PsiClass convertPsiClass(Class clazz) {
-        return JavaPsiFacade.getInstance(project).findClass(clazz.getName(), GlobalSearchScope.allScope(project));
-    }
-
-    /**
      * 生成import
      */
     private void generateImports() {
@@ -155,30 +217,45 @@ public class ParcelableGenerator extends AnAction {
                     ) {
                 continue;
             }
-            String t = field.getType().getPresentableText();
-            String fieldType = convertTypeDesc(t);
-            if (null == fieldType) {
-                continue;
-            }
-            boolean isBoolean = isBoolean(t);
-            String fieldName = field.getName();
-            PsiCodeBlock writeMethodBody = writeMethod.getBody();
-            if (null != writeMethodBody) {
-                if (isBoolean) {
-                    writeMethodBody.add(factory.createStatementFromText("out.write" + fieldType + "((byte) (" + fieldName + " ? 1 : 0));", null));
-                } else {
-                    writeMethodBody.add(factory.createStatementFromText("out.write" + fieldType + "(" + fieldName + ");", null));
+            PsiType fieldType = field.getType();
+
+            // 取指定的generator
+            SupportTypeGenerator supportTypeGenerator = generatorMapper.get(fieldType.getPresentableText());
+
+            if (null == supportTypeGenerator) {
+                if (getTypeByName(PARCELABLE_CLASS_FULL_NAME, project).isAssignableFrom(fieldType)) { // 是Parcelable类型
+                    supportTypeGenerator = generatorMapper.get("Parcelable");
+                } else if (1 == fieldType.getArrayDimensions() && getTypeByName(PARCELABLE_CLASS_FULL_NAME, project).isAssignableFrom(fieldType.getDeepComponentType())) { // Parcelable类型数组
+                    supportTypeGenerator = generatorMapper.get("ParcelableArray");
+                } else if (getTypeByClass(List.class, project).isAssignableFrom(fieldType)) { // List类型
+                    if (fieldType instanceof PsiClassReferenceType) {
+                        PsiType[] parametersTypes = ((PsiClassReferenceType) fieldType).getParameters();
+                        if (1 == parametersTypes.length) {
+                            PsiType parametersType = parametersTypes[0];
+                            if (getTypeByName(PARCELABLE_CLASS_FULL_NAME, project).isAssignableFrom(parametersType)) { // 是Parcelable类型的List
+                                supportTypeGenerator = generatorMapper.get("ParcelableList");
+                            }
+                        }
+                    }
+                } else if (getTypeByName(SERIALIZABLE_CLASS_FULL_NAME, project).isAssignableFrom(fieldType)) { // 是Serializable类型
+                    supportTypeGenerator = generatorMapper.get("Serializable");
                 }
             }
 
-            PsiCodeBlock constructorMethodBody = parcelConstructor.getBody();
-            if (null != constructorMethodBody) {
-                if (isBoolean) {
-                    constructorMethodBody.add(factory.createStatementFromText(fieldName + " = 1 == in.read" + fieldType + "();", null));
-                } else {
-                    constructorMethodBody.add(factory.createStatementFromText(fieldName + " = in.read" + fieldType + "();", null));
-                }
+            // 尝试使用默认的generator
+            if (null == supportTypeGenerator && ParcelUtil.isParcelable(fieldType, project)) {
+                supportTypeGenerator = generatorMapper.get("common");
             }
+
+            if (null == supportTypeGenerator) {
+                continue;
+            }
+
+            PsiCodeBlock writeMethodBody = writeMethod.getBody();
+            supportTypeGenerator.writeMethod(writeMethodBody, factory, field);
+
+            PsiCodeBlock constructorMethodBody = parcelConstructor.getBody();
+            supportTypeGenerator.readMethod(constructorMethodBody, factory, field);
         }
 
         psiClass.add(writeMethod);
@@ -217,40 +294,4 @@ public class ParcelableGenerator extends AnAction {
         return PsiTreeUtil.getParentOfType(elementAt, PsiClass.class);
     }
 
-    private String convertTypeDesc(String type) {
-        switch (type) {
-            case "int":
-            case "Integer":
-                return "Int";
-
-            case "float":
-            case "Float":
-                return "Float";
-
-            case "String":
-                return "String";
-
-            case "short":
-            case "Short":
-                return "Short";
-
-            case "boolean":
-            case "Boolean":
-            case "byte":
-            case "Byte":
-                return "Byte";
-            case "long":
-            case "Long":
-                return "Long";
-
-            case "double":
-            case "Double":
-                return "Double";
-        }
-        return null;
-    }
-
-    private boolean isBoolean(String type) {
-        return "Boolean".equals(type) || "boolean".equals(type);
-    }
 }

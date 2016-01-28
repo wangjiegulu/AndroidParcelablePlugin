@@ -1,24 +1,54 @@
 # AndroidParcelablePlugin
 Intellij IDEA(Android Studio) Plugin for Android Parcelable.
 
-##Implement Parcelable interface: 
+## Supported types
+- Types implementing `Parcelable`
+- Types implementing `Serializable`
+- `Parcelable` list / array
+- `Serializable` list / array
+- Primitive types: `int`, `float`, `double`, `long`, `boolean`, `byte`, `short`, `String` and their Wrapper type
+- Arrays of Primitive types and their Wrapper types
+- `IBinder`
+- `SparseArray`
+- `PersistableBundle`
+- `Map`
+- `Size`
+- `SizeF`
+- `CharSequence`
+
+##Implement Parcelable interface:
 ```java
-package com.wangjie.idea.plugin;
-public class Person{
+public class Person {
     private int id;
     private String name;
-    private Float height;
-    private Double weight;
+    private String address;
+    private boolean deleted;
+    private Float weight;
+    private Double height;
     private Byte gender;
-    private Boolean deleted;
-    private Long birth;
+    private String[] nickNames;
+    private Bundle bundle;
+    private Pet pet;
+    private Date date;
+    private List<Phone> phones;
+    private List<Pet> otherPets;
+    private IBinder iBinder;
+    private SparseArray sparseArray;
+    private PersistableBundle persistableBundle;
+    private Phone[] phoneArray;
+}
+
+class Phone {
+    private String model;
+    private Integer size;
+}
+
+class Pet implements Serializable {
+    private String name;
 }
 ```
 == generate... ==>
 ```java
-package com.wangjie.idea.plugin;
-import android.os.*;
-
 public class Person implements Parcelable {
     public static final Parcelable.Creator<Person> CREATOR = new Parcelable.Creator<Person>() {
         @Override
@@ -33,31 +63,61 @@ public class Person implements Parcelable {
     };
     private int id;
     private String name;
-    private Float height;
-    private Double weight;
+    private String address;
+    private boolean deleted;
+    private Float weight;
+    private Double height;
     private Byte gender;
-    private Boolean deleted;
-    private Long birth;
+    private String[] nickNames;
+    private Bundle bundle;
+    private Pet pet;
+    private Date date;
+    private List<Phone> phones;
+    private List<Pet> otherPets;
+    private IBinder iBinder;
+    private SparseArray sparseArray;
+    private PersistableBundle persistableBundle;
+    private Phone[] phoneArray;
 
     public Person(Parcel in) {
         id = in.readInt();
         name = in.readString();
-        height = in.readFloat();
-        weight = in.readDouble();
-        gender = in.readByte();
+        address = in.readString();
         deleted = 1 == in.readByte();
-        birth = in.readLong();
+        weight = (Float) in.readValue(Float.class.getClassLoader());
+        height = (Double) in.readValue(Double.class.getClassLoader());
+        gender = (Byte) in.readValue(Byte.class.getClassLoader());
+        nickNames = in.createStringArray();
+        bundle = in.readParcelable(Bundle.class.getClassLoader());
+        pet = (Pet) in.readSerializable();
+        date = (Date) in.readSerializable();
+        phones = in.createTypedArrayList(Phone.CREATOR);
+        otherPets = (List<Pet>) in.readValue(List.class.getClassLoader());
+        iBinder = (IBinder) in.readValue(IBinder.class.getClassLoader());
+        sparseArray = (SparseArray) in.readValue(SparseArray.class.getClassLoader());
+        persistableBundle = in.readParcelable(PersistableBundle.class.getClassLoader());
+        phoneArray = in.createTypedArray(Phone.CREATOR);
     }
 
     @Override
     public void writeToParcel(Parcel out, int flags) {
         out.writeInt(id);
         out.writeString(name);
-        out.writeFloat(height);
-        out.writeDouble(weight);
-        out.writeByte(gender);
+        out.writeString(address);
         out.writeByte((byte) (deleted ? 1 : 0));
-        out.writeLong(birth);
+        out.writeValue(weight);
+        out.writeValue(height);
+        out.writeValue(gender);
+        out.writeStringArray(nickNames);
+        out.writeParcelable(bundle, 0);
+        out.writeSerializable(pet);
+        out.writeSerializable(date);
+        out.writeTypedList(phones);
+        out.writeValue(otherPets);
+        out.writeValue(iBinder);
+        out.writeValue(sparseArray);
+        out.writeParcelable(persistableBundle, 0);
+        out.writeTypedArray(phoneArray, 0);
     }
 
     @Override
@@ -65,13 +125,52 @@ public class Person implements Parcelable {
         return 0;
     }
 }
+
+class Phone implements Parcelable {
+    public static final Parcelable.Creator<Phone> CREATOR = new Parcelable.Creator<Phone>() {
+        @Override
+        public Phone[] newArray(int size) {
+            return new Phone[size];
+        }
+
+        @Override
+        public Phone createFromParcel(Parcel in) {
+            return new Phone(in);
+        }
+    };
+    private String model;
+    private Integer size;
+
+    public Phone(Parcel in) {
+        model = in.readString();
+        size = (Integer) in.readValue(Integer.class.getClassLoader());
+    }
+
+    @Override
+    public void writeToParcel(Parcel out, int flags) {
+        out.writeString(model);
+        out.writeValue(size);
+    }
+
+    @Override
+    public int describeContents() {
+        return 0;
+    }
+}
+
+class Pet implements Serializable {
+    private String name;
+}
 ```
 
 ## How to use
 ### 1. Install the "Parcelable Generator For Android" plugin.
 Preferences --> Plugins --> Install Plugin from disk --> restart
 <img src='screenshot/01.png' height='500px'/>
-###2. Click "Generate Parcelable" in "Code" menu.
+###2. Open "Generate Parcelable"  item menu.
+- Right click -> `generate...` -> `Generate Parcelable`
+OR
+- `Control` + `Enter` -> `Generate Parcelable`
 <img src='screenshot/02.png' height='500px'/>
 
 License

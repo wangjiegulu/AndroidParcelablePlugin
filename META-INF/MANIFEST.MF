@@ -1,0 +1,5 @@
+Manifest-Version: 1.0
+Specification-Version: 1.2
+Specification-Vendor: Wang Jie
+Implementation-Version: 1.2
+Implementation-Vendor: Wang Jie
