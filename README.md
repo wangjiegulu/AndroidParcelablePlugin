@@ -184,7 +184,7 @@ OR
 
 - `Control` + `Enter` -> `Generate Parcelable`
 
-<img src='screenshot/02.png' height='500px'/>
+<img src='screenshot/02.png' height='250px'/>
 
 License
 =======
