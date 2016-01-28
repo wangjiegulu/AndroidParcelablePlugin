@@ -29,8 +29,14 @@ public class CommonTypeGenerator implements SupportTypeGenerator {
         }
         PsiType fieldType = field.getType();
         String presentableType = field.getType().getPresentableText();
-        String rawType = fieldType instanceof PsiClassReferenceType ? ((PsiClassReferenceType) fieldType).rawType().getClassName() : presentableType;
+        PsiType[] parameterTypes = ((PsiClassReferenceType) fieldType).getParameters();
 
-        methodBody.add(factory.createStatementFromText(field.getName() + " = (" + presentableType + ")in.readValue(" + rawType + ".class.getClassLoader());", null));
+        String classLoaderTypeName;
+        if(0 == parameterTypes.length){
+            classLoaderTypeName = presentableType;
+        }else{
+            classLoaderTypeName = parameterTypes[0].getPresentableText();
+        }
+        methodBody.add(factory.createStatementFromText(field.getName() + " = (" + presentableType + ")in.readValue(" + classLoaderTypeName + ".class.getClassLoader());", null));
     }
 }

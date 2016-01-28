@@ -97,7 +97,7 @@ public class Person implements Parcelable {
         pet = (Pet) in.readSerializable();
         date = (Date) in.readSerializable();
         phones = in.createTypedArrayList(Phone.CREATOR);
-        otherPets = (List<Pet>) in.readValue(List.class.getClassLoader());
+        otherPets = (List<Pet>) in.readValue(Pet.class.getClassLoader());
         iBinder = (IBinder) in.readValue(IBinder.class.getClassLoader());
         sparseArray = (SparseArray) in.readValue(SparseArray.class.getClassLoader());
         persistableBundle = in.readParcelable(PersistableBundle.class.getClassLoader());
@@ -172,7 +172,7 @@ class Pet implements Serializable {
 
 ### 1. Install the "Parcelable Generator For Android" plugin.
 
-Preferences --> Plugins --> Install Plugin from disk --> restart
+`Preferences` --> `Plugins` --> `Install Plugin from disk` --> Restart IDEA
 
 <img src='screenshot/01.png' height='500px'/>
 
